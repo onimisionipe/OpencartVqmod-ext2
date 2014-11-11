@@ -1,0 +1,576 @@
+<modification>
+    <id> Add retail price module</id>
+    <version>2.0</version>
+    <vqmver>2.3.2</vqmver>
+    <author> Mathieu Onipe - onimisionipe@gmail.com</author>
+    
+    <file name="admin/language/english/catalog/product.php">
+  <operation>
+    <search position="after"><![CDATA[
+    $_['entry_price']            = 'Price:';
+    ]]></search>
+    <add trim="true"><![CDATA[
+    $_['entry_retail_price']      = 'Amount to add to price:';
+    $_['entry_retail_price_unit']      = 'Unit';
+    $_['use_for_cat_products'] = 'Use for all product in this product\'s category';
+        
+    
+		]]></add>
+  </operation>
+</file>
+
+<file name="admin/model/catalog/product.php">
+    <operation>
+        <search position="before">
+            <![CDATA[
+           public function getProduct($product_id) {
+            ]]>
+            </search>
+            <add trim="true"><![CDATA[ 
+               public function getRetailPrice($product_id){
+                $query = $this->db->query("SELECT * FROM ".DB_PREFIX . "retail_price_module WHERE product_id = '".(int)$product_id . "'");
+                if($query->num_rows>0){
+ 
+		return $query->row;
+                } else {
+                return false;
+}
+                            
+}
+          
+
+]]>
+        </add> 
+        
+    </operation>
+    
+    <operation>
+        <search position="before" index="1">
+            <![CDATA[ 
+            if (isset($data['product_layout'])) {
+]]>
+            
+        </search>
+        <add trim="true"><![CDATA[
+            if(isset($data['price_retail'])) {
+            $this->db->query("INSERT INTO ".DB_PREFIX."retail_price_module SET product_id='".(int)$product_id . "', unit='".$data['retail_unit']."', retail_price='".$data['price_retail'] ."'");
+            
+            }
+         ]]>   
+        </add>
+        
+    </operation>
+    
+    <operation>
+        <search position="after"><![CDATA[ 
+$data = array_merge($data, array('product_profiles' => $this->getProfiles($product_id)));
+]]>            
+        </search>
+        <add trim="true"><![CDATA[ 
+        $retailPrice = $this->getRetailPrice($product_id);
+            $data['retail_unit'] = $retailPrice['unit'];
+            $data['price_retail'] = $retailPrice['retail_price'];
+]]>
+  </add>
+    </operation>
+    
+    <operation>
+        <search position="after">
+            <![CDATA[ 
+$this->db->query("DELETE FROM " . DB_PREFIX . "review WHERE product_id = '" . (int)$product_id . "'");
+]]>
+            
+        </search>
+        <add trim="true"><![CDATA[ 
+           $this->db->query("DELETE FROM " . DB_PREFIX . "retail_price_module WHERE product_id = '" . (int)$product_id . "'"); 
+            
+       ]]> </add>
+    </operation>
+    
+    
+    <operation>
+        <search position="before">
+            <![CDATA[
+           public function copyProduct($product_id) {
+            ]]>
+            </search>
+            <add trim="true"><![CDATA[ 
+               public function setRetailPrice($product_id, $retail_price, $retail_unit, $retail_all, $product_cat){
+                if(!isset($retail_all)){
+                $query = $this->db->query("SELECT * FROM ".DB_PREFIX. "retail_price_module WHERE product_id='".(int)$product_id . "'");
+                if($query->num_rows<1){ 
+                $this->db->query("INSERT INTO ".DB_PREFIX."retail_price_module SET product_id='".(int)$product_id . "', unit='".$retail_unit."', retail_price='".$retail_price ."'");
+} else {
+   $this->db->query("UPDATE ".DB_PREFIX."retail_price_module SET unit='".$retail_unit."', retail_price='".$retail_price ."' WHERE product_id='".(int)$product_id."'");             
+}
+} else {
+   //perform multiproduct add in one category - the first category in the list of category
+                $firstcat = $product_cat[0];
+                $populate = array();
+                $query2 = $this->db->query("SELECT product_id FROM " . DB_PREFIX ."product_to_category WHERE category_id = '" . $firstcat . "'");
+                
+            if($query2->num_rows>0){
+                
+                foreach($query2->rows as $row){
+                    $populate[] = $row['product_id'];
+                                                    
+                }
+                  
+            }
+                if(sizeof($populate)<1){
+            return false;
+            
+        }
+          foreach ($populate as $enter) {
+                
+            //$check = $this->db->query("SELECT * FROM ". DB_PREFIX . "retail_price_module WHERE product_id='".(int)$enter."'");
+            $check2 = $this->db->query("SELECT * FROM ". DB_PREFIX . "retail_price_module WHERE product_id='".(int)$enter."'");
+            
+            if($check2->num_rows < 1) {
+            $this->db->query("INSERT INTO ". DB_PREFIX . "retail_price_module SET product_id='".(int)$enter . "', unit='".$retail_unit."', retail_price='".$retail_price."'");
+        
+            } else {
+               $this->db->query("DELETE FROM ". DB_PREFIX . "retail_price_module WHERE product_id='".(int)$enter."'");
+               $this->db->query("INSERT INTO ". DB_PREFIX . "retail_price_module SET product_id='".(int)$enter . "', unit='".$retail_unit."', retail_price='".$retail_price."'");
+            }
+        }      
+           
+}
+}
+]]>
+        </add> 
+        
+    </operation>
+    
+    
+</file>
+
+<file name="admin/controller/catalog/product.php">
+    <operation>
+        <search position="after"><![CDATA[ 
+private $error = array();          
+
+]]>
+      </search>
+      <add trim="true">
+          private $from;
+      </add>
+        
+    </operation>
+    
+    <operation>
+        <search position="before" index="1">
+            <![CDATA[ 
+$this->getForm();
+]]>
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $this->from = "insert";
+]]>
+            
+        </add>
+        
+    </operation>
+    
+    <operation>
+        <search position="before" index="2">
+            <![CDATA[ 
+$this->getForm();
+]]>
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $this->from = "update";
+]]>
+            
+        </add>
+        
+    </operation>
+      
+    
+    
+    <operation>
+        <search position="after">
+            <![CDATA[ 
+$this->data['entry_price'] = $this->language->get('entry_price');
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+$this->data['entry_retail_price']      = $this->language->get('entry_retail_price');
+    $this->data['entry_retail_price_unit']      = $this->language->get('entry_retail_price_unit');
+    $this->data['use_for_cat_products']      = $this->language->get('use_for_cat_products');
+    $this->data['fromwhere'] = $this->from;
+
+]]>
+            
+        </add>
+    </operation>
+    <operation>
+        <search position="after">
+            <![CDATA[
+$this->model_catalog_product->editProduct($this->request->get['product_id'], $this->request->post);
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+if(isset($this->request->post['retail_apply_all'])) {
+        $this->model_catalog_product->setRetailPrice($this->request->get['product_id'],$this->request->post['price_retail'],$this->request->post['retail_unit'], $this->request->post['retail_apply_all'],$this->request->post['product_category']);    
+} else {
+$this->model_catalog_product->setRetailPrice($this->request->get['product_id'],$this->request->post['price_retail'],$this->request->post['retail_unit'], false,$this->request->post['product_category']);  
+}
+]]>
+            
+        </add>
+    </operation>
+    
+    <operation>
+        <search position="after">
+            <![CDATA[
+$product_info = $this->model_catalog_product->getProduct($this->request->get['product_id']);
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $product_retail_price = $this->model_catalog_product->getRetailPrice($this->request->get['product_id']);
+
+]]>
+        </add>
+    </operation>    
+    
+    
+    <operation>
+        <search position="after">
+            <![CDATA[
+$this->data['languages'] = $this->model_localisation_language->getLanguages();
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            if (isset($this->request->post['price_retail'])) {
+			$this->data['price_retail'] = $this->request->post['price_retail'];
+                        $this->data['retail_unit'] = $this->request->post['retail_unit'];
+                        $this->data['retail_apply_all'] = $this->request->post['retail_apply_all'];
+                        
+		} elseif ($product_retail_price!==false) {
+			$this->data['price_retail'] = $product_retail_price['retail_price'];
+                        $this->data['retail_unit'] = $product_retail_price['unit'];
+		} else {
+			$this->data['price_retail'] = '';
+                        $this->data['retail_unit'] = '';
+		}
+
+]]>
+        </add>
+    </operation>    
+    
+</file>
+
+<file name="admin/view/template/catalog/product_form.tpl">
+    <operation>
+        <search position="after">
+            <![CDATA[
+             
+<td><input type="text" name="price" value="<?php echo $price; ?>" /></td>]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            
+                <td><?php echo $entry_retail_price; ?></td>
+                <td><input type="text" name="price_retail" value="<?php echo $price_retail; ?>" /></td>
+                <td><?php echo $entry_retail_price_unit; ?></td>
+                <td><input type="text" name="retail_unit" value="<?php echo $retail_unit; ?>" /></td>
+                <?php if($fromwhere=="update"){ ?>
+                <td><?php echo $use_for_cat_products; ?>: <input type="checkbox" name="retail_apply_all" value="1" /> </td>
+               <?php } ?> 
+            
+]]>
+        </add>
+        
+    </operation>
+    
+</file>
+
+<file name="catalog/language/english/product/product.php">
+    <operation>
+        <search position="after">
+            <![CDATA[ 
+            $_['text_model']        = 'Product Code:';
+]]>
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $_['text_retail_price'] = '<span style="color:rgba(0,0,0,0.55); font-style:italic;font-size:15px;">Retail Price:</span>';
+]]>
+            
+        </add>
+    </operation>
+    
+</file>
+
+
+<file name="catalog/model/catalog/product.php">
+    <operation>
+        <search position="before">
+            <![CDATA[
+           public function getProduct($product_id) {
+            ]]>
+            </search>
+            <add trim="true"><![CDATA[ 
+               public function getRetailPrice($product_id){
+                $query = $this->db->query("SELECT * FROM ".DB_PREFIX . "retail_price_module WHERE product_id = '".(int)$product_id . "'");
+                if($query->num_rows>0){
+ 
+		return $query->row;
+                } else {
+                return false;
+}
+                            
+}
+          
+
+]]>
+        </add> 
+        
+    </operation> 
+</file>
+
+<file name="catalog/controller/product/product.php">
+    <operation>
+        <search position="after" index="1">
+            <![CDATA[ 
+$product_info = $this->model_catalog_product->getProduct($product_id);
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $product_retail = $this->model_catalog_product->getRetailPrice($product_id);
+]]>
+        </add>
+    </operation>
+    
+    <operation>
+        <search position="after">
+            <![CDATA[ 
+            $this->data['text_price'] = $this->language->get('text_price');
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            if($product_retail !== false && strlen(trim($product_retail['retail_price']))>0){
+            $this->data['retail_price'] = (int)$product_info['price'] + (int)$product_retail['retail_price'];
+            $this->data['retail_unit'] = $product_retail['unit'];
+            
+            //load languages
+            $this->data['text_retail_price'] = $this->language->get('text_retail_price');
+           }  
+]]>
+            
+        </add>
+    </operation>
+    
+</file>
+
+<file name="catalog/view/theme/default/template/product/product.tpl">
+    <operation>
+        <search position="after"><![CDATA[ 
+        <?php if (!$special) { ?>
+]]>
+      </search>
+      <add trim="true">
+          <![CDATA[ 
+<?php if(isset($retail_price)) {
+?>
+<?php echo $text_retail_price; ?> <span style="font-size:18px; color: rgba(0,0,0,0.4); text-decoration:line-through;">N<?php echo $retail_price. " ". $retail_unit; ?> </span>
+<br/>
+<?php } ?>
+]]>
+          
+      </add>
+    </operation>
+    <operation>
+        <search position="before" index="1"><![CDATA[ 
+<div class="moreinfo">
+]]>
+        
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            <?php if(isset($retail_price)) {
+            ?>
+            <br/>
+            <br/>
+            <?php } ?>
+]]>
+            
+        </add>
+    </operation>
+    
+    <operation>
+        <search position="before" index="1">
+            <![CDATA[ 
+<?php echo $price; ?> 
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            <span style="color:#F1C40F; font-size:19px;">Our Price: </span>
+]]>
+        </add>
+    </operation>
+    
+</file>
+
+
+<file name="catalog/language/english/product/category.php">
+    <operation>
+        <search position="after">
+            <![CDATA[ 
+            $_['text_price']        = 'Price:'; 
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            $_['text_retail_price'] = 'Retail Price: ';
+]]>
+        </add>
+    </operation>
+    
+</file>
+<file name="catalog/controller/product/category.php">
+    <operation>
+        <search position="after"><![CDATA[
+        $this->data['text_tax'] = $this->language->get('text_tax');
+]]>
+            
+        </search>
+        <add trim="true"><![CDATA[ 
+        $this->data['text_retail_price'] = $this->language->get('text_retail_price');
+]]>
+            
+        </add>
+    </operation>
+             
+    <operation>
+        <search position="after" index="2">
+            <![CDATA[ 
+            foreach ($results as $result) {
+]]>
+            </search>
+            <add trim="true">
+                <![CDATA[ 
+                   $price_retail = $this->model_catalog_product->getRetailPrice($result['product_id']);
+                   if($price_retail !== false && strlen(trim($price_retail['retail_price']))>0){
+                    $retail = (int)$result['price'] + (int)$price_retail['retail_price'];
+                    $unit = $price_retail['unit'];
+} else {
+$retail = 0;
+$unit = 0;
+}
+]]>
+                
+            </add>
+    </operation>
+    
+    <operation>
+        <search position="after"><![CDATA[ 
+        'tax'         => $tax,
+]]>
+            
+        </search>
+        <add trim="true"><![CDATA[ 
+        'retail_price' => $retail,
+        'retail_unit' => $unit,
+            
+]]>
+            
+        </add>
+    </operation>
+        
+</file>
+
+<file name="catalog/view/theme/default/template/product/category.tpl">
+    <operation>
+        <search position="before" index="1">
+<![CDATA[ 
+        <div class="price">
+]]>
+            
+        </search>
+        <add trim="true">
+            <![CDATA[
+            <?php if($product['retail_price']!= 0){
+                       ?>
+            <div class="retailprice"><?php echo $text_retail_price; ?> <span style="text-decoration:line-through; font-weight:bold; color:white;">N<?php echo $product['retail_price']. " ". $product['retail_unit']; ?></span> </div>
+<?php }   ?> 
+]]>
+        </add>
+    </operation>
+    
+    <operation>
+        <search position="before">
+            <![CDATA[
+            </style>
+]]>            
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+     .product-grid .retailprice {
+    background-color:rgba(0,0,0,0.5);
+    display: block;
+    width: 155px; 
+    height: 30px; 
+    text-align:center; 
+   font-size: 11px; 
+    color: white; 
+     padding-top: 5px;
+    border-radius: 3px;
+}
+]]>
+        </add>
+    </operation>
+    
+    <operation>
+        <search position="after">
+            <![CDATA[
+            html += '  <div class="description">' + $(element).find('.description').html() + '</div>';
+]]>
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            var retail = $(element).find('.retailprice').html();
+                    if (retail != null) {
+            html += '   <div class="retailprice">' + $(element).find('.retailprice').html() + '</div>';
+            }
+]]>
+        </add>
+    </operation>
+        <operation>
+        <search position="after">
+            <![CDATA[
+            html += '<div class="description">' + $(element).find('.description').html() + '</div>';
+]]>
+        </search>
+        <add trim="true">
+            <![CDATA[ 
+            var retail = $(element).find('.retailprice').html();
+                    if (retail != null) {
+            html += '<div class="retailprice">' + $(element).find('.retailprice').html() + '</div>';
+            }
+            
+]]>
+        </add>
+    </operation>
+</file>
+
+</modification>
